@@ -1,6 +1,6 @@
 {
   "buildCommand": null,
-  "outputDirectory": "public",
+  "outputDirectory": "public/public",
   "framework": null,
   "functions": {
     "api/scan.js": {
