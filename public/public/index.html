@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deal Radar</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { background: #111827; margin: 0; }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #1f2937; }
+    ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
+    .line-clamp-2 { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .spin { animation: spin 1s linear infinite; }
+    .pulse { animation: pulse 2s ease-in-out infinite; }
+    details > summary { list-style: none; }
+    details > summary::-webkit-details-marker { display: none; }
+  </style>
+</head>
+<body class="min-h-screen bg-gray-900 text-white">
+<div id="root"></div>
+
+<script type="text/babel">
+// ──── Icons (inline SVG, zero dependency) ─────────────────────────────────────
+const Icon = ({ d, size=16, className="" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    {Array.isArray(d) ? d.map((path,i) => <path key={i} d={path}/>) : <path d={d}/>}
+  </svg>
+);
+const icons = {
+  Bell:         "M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0",
+  Plus:         "M12 5v14M5 12h14",
+  Settings:     ["M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16z","M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z","M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"],
+  Trash:        "M3 6h18","M19 6l-1 14H6L5 6","M8 6V4h8v2"],
+  Pencil:       "M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7","M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"],
+  Check:        "M22 11.08V12a10 10 0 1 1-5.93-9.14","M22 4 12 14.01l-3-3"],
+  XCircle:      "M15 9l-6 6","M9 9l6 6","M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"],
+  Car:          "M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2","M7 17h10","M7 11h10","M7 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0","M13 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0"],
+  External:     "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6","M15 3h6v6","M10 14 21 3"],
+  Bookmark:     "M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z",
+  BookmarkFill: "M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z",
+  X:            "M18 6 6 18M6 6l12 12",
+  Activity:     "M22 12h-4l-3 9L9 3l-3 9H2",
+  Warning:      ["M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z","M12 9v4","M12 17h.01"],
+  TrendDown:    "M22 17l-9.5-9.5-5 5L1 6","M16 17h6v-6"],
+  Clock:        "M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z","M12 6v6l4 2"],
+  Filter:       "M22 3H2l8 9.46V19l4 2v-8.54L22 3z",
+  ChevLeft:     "M15 18l-6-6 6-6",
+  EyeOff:       ["M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24","M1 1l22 22"],
+  BarChart:     "M12 20V10","M18 20V4","M6 20v-4"],
+  Database:     "M12 2C6.48 2 2 4.02 2 6.5S6.48 11 12 11s10-2.02 10-4.5S17.52 2 12 2z","M2 6.5v5C2 13.98 6.48 16 12 16s10-2.02 10-4.5v-5","M2 11.5v5C2 18.98 6.48 21 12 21s10-2.02 10-4.5v-5"],
+  Zap:          "M13 2 3 14h9l-1 8 10-12h-9l1-8z",
+  Globe:        "M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z","M2 12h20","M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"],
+  Target:       "M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z","M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12z","M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"],
+  Refresh:      "M23 4v6h-6","M1 20v-6h6","M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"],
+  Search:       "M21 21l-6-6m2-5a7 7 0 1 1-14 0 7 7 0 0 1 14 0",
+};
+const I = ({ name, size=16, className="" }) => <Icon d={icons[name]} size={size} className={className} />;{mod.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}\\b`).test(low)) {
+        model = mod.charAt(0).toUpperCase()+mod.slice(1); break;
+      }
+    }
+  }
+  if (!model) {
+    const after = low.slice(low.indexOf(make.toLowerCase())+make.length).trim().match(/^([a-z0-9\-]+)/);
+    if (after && after[1].length>=2 && !["for","in","with","and","the","sale","car"].includes(after[1]))
+      model = after[1].charAt(0).toUpperCase()+after[1].slice(1);
+  }
+  return {make,model};
+}
+
+function buildSearchUrl(item, settings) {
+  const loc = LOCATIONS.find(l=>l.slug===(item?.location||settings.defaultLocation))||LOCATIONS[0];
+  const kw = item ? [item.make,item.model].filter(Boolean).join("+").toLowerCase() : null;
+  if (kw) return loc.id
+    ? `https://www.gumtree.com.au/s-cars-vans-utes/${loc.slug}/${kw}/k0c18320l${loc.id}?sort=date`
+    : `https://www.gumtree.com.au/s-cars-vans-utes/${kw}/k0c18320?sort=date`;
+  return loc.id
+    ? `https://www.gumtree.com.au/s-cars-vans-utes/${loc.slug}/c18320l${loc.id}?sort=date`
+    : `https://www.gumtree.com.au/s-cars-vans-utes/c18320?sort=date`;
+}
+
+// Fetch listings via server-side API (preferred) or CORS proxy fallback
+async function fetchListingsAPI(item, settings, setDiag) {
+  const loc = (item?.location||settings.defaultLocation);
+  const kw = item ? [item.make,item.model].filter(Boolean).join(" ") : null;
+  // Try server-side API first (when deployed to Vercel)
+  if (API_BASE) {
+    if (setDiag) setDiag("Fetching via API...");
+    const params = new URLSearchParams({ location: loc });
+    if (kw) params.set("keyword", kw);
+    const ctrl = new AbortController();
+    const tid = setTimeout(()=>ctrl.abort(), 20000);
+    const res = await fetch(`${API_BASE}/scan?${params}`, { signal: ctrl.signal });
+    clearTimeout(tid);
+    if (!res.ok) throw new Error(`API error ${res.status}`);
+    const data = await res.json();
+    if (setDiag) setDiag(null);
+    // Convert API format to internal listing format
+    return (data.listings||[]).map(l=>({
+      guid: l.guid, title: l.title, link: l.link,
+      description: l.description||l.title,
+      pubDate: l.pubDate||new Date().toISOString(),
+      thumbnail: l.thumbnail||null,
+    }));
+  }
+  // Fallback: CORS proxy for local file usage
+  const searchUrl = buildSearchUrl(item, settings);
+  const html = await fetchPage(searchUrl, setDiag);
+  return parseListingsHtml(html);
+}
+
+function parseListingsHtml(html) {
+  try {
+    const doc = new DOMParser().parseFromString(html,"text/html");
+    const adLinks = doc.querySelectorAll('a[href*="/s-ad/"]');
+    const listings = [];
+    const seen = new Set();
+    adLinks.forEach(a=>{
+      const href = a.getAttribute("href")||"";
+      const idMatch = href.match(/\/(\d{7,})$/);
+      if (!idMatch) return;
+      const guid = idMatch[1];
+      if (seen.has(guid)) return;
+      seen.add(guid);
+      const titleEl = a.querySelector('[class*="title"]');
+      let title = titleEl ? titleEl.textContent.trim() : "";
+      if (!title) { const parts = href.split("/"); title = (parts[parts.length-2]||"").replace(/-/g," "); }
+      title = title.replace(/^Top/,"").trim();
+      const priceEl = a.querySelector('[class*="price"]');
+      const priceText = priceEl ? priceEl.textContent.trim() : a.textContent||"";
+      const imgEl = a.querySelector("img");
+      let thumb = imgEl ? (imgEl.getAttribute("src")||imgEl.getAttribute("data-src")||null) : null;
+      const fullUrl = href.startsWith("http") ? href : `https://www.gumtree.com.au${href}`;
+      listings.push({ guid, title, link: fullUrl, description: `${title} ${priceText}`, pubDate: new Date().toISOString(), thumbnail: thumb });
+    });
+    return listings;
+  } catch(e) { return []; }
+}
+
+function chime() {
+  try {
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    const o=ctx.createOscillator(),g=ctx.createGain();
+    o.connect(g);g.connect(ctx.destination);
+    o.frequency.setValueAtTime(880,ctx.currentTime);
+    o.frequency.setValueAtTime(1100,ctx.currentTime+0.1);
+    g.gain.setValueAtTime(0.25,ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.5);
+    o.start();o.stop(ctx.currentTime+0.5);
+  } catch {}
+}
+
+// Price Intelligence
+const mKey = (make,model) => `${(make||"").toLowerCase().trim()}_${(model||"").toLowerCase().trim()}`;
+const median = arr => { if(!arr.length) return 0; const s=[...arr].sort((a,b)=>a-b),m=Math.floor(s.length/2); return s.length%2?s[m]:(s[m-1]+s[m])/2; };
+const pctile = (arr,p) => { if(!arr.length) return 0; const s=[...arr].sort((a,b)=>a-b),i=(p/100)*(s.length-1),l=Math.floor(i),u=Math.ceil(i); return l===u?s[l]:s[l]+(s[u]-s[l])*(i-l); };
+
+function analyze(pts) {
+  if (!pts.length) return null;
+  const prices=pts.map(d=>d.price).filter(p=>p>0);
+  if (!prices.length) return null;
+  const byYear={};
+  pts.forEach(d=>{ if(d.year&&d.price>0){ if(!byYear[d.year]) byYear[d.year]=[]; byYear[d.year].push(d.price); } });
+  const yearStats={};
+  for(const[y,yp] of Object.entries(byYear)) yearStats[y]={median:Math.round(median(yp)),avg:Math.round(yp.reduce((a,b)=>a+b,0)/yp.length),min:Math.min(...yp),max:Math.max(...yp),count:yp.length};
+  return {
+    totalListings:pts.length,pricedListings:prices.length,
+    median:Math.round(median(prices)),avg:Math.round(prices.reduce((a,b)=>a+b,0)/prices.length),
+    min:Math.min(...prices),max:Math.max(...prices),
+    p10:Math.round(pctile(prices,10)),p25:Math.round(pctile(prices,25)),
+    p75:Math.round(pctile(prices,75)),p90:Math.round(pctile(prices,90)),
+    byYear:yearStats,lastUpdated:new Date().toISOString(),
+  };
+}
+
+function dealScore(price,stats,year,yearStats) {
+  if(!price||!stats) return null;
+  const ref=(year&&yearStats?.[year]?.count>=2)?yearStats[year].median:stats.median;
+  if(!ref||ref===0) return null;
+  const pct=((ref-price)/ref)*100;
+  if(pct<=0) return 0;
+  return Math.min(100,Math.round(pct*3.2));
+}
+
+// Fetch with proxy fallback
+async function fetchPage(pageUrl, setDiag) {
+  let lastErr = "";
+  for (let i=0; i<CORS_PROXIES.length; i++) {
+    const proxyUrl = CORS_PROXIES[i](pageUrl);
+    if (setDiag) setDiag(`Trying proxy ${i+1}/${CORS_PROXIES.length}...`);
+    try {
+      const ctrl = new AbortController();
+      const tid  = setTimeout(()=>ctrl.abort(), 15000);
+      const res  = await fetch(proxyUrl, { signal: ctrl.signal });
+      clearTimeout(tid);
+      if (!res.ok) { lastErr=`HTTP ${res.status} from proxy ${i+1}`; continue; }
+      // allorigins returns JSON {contents:...}, others return raw HTML
+      const contentType = res.headers.get("content-type")||"";
+      let html;
+      if (contentType.includes("application/json")) {
+        const data = await res.json();
+        html = data.contents || (typeof data === "string" ? data : "");
+      } else {
+        html = await res.text();
+      }
+      if (typeof html === "string" && html.length > 500) {
+        if (setDiag) setDiag(null);
+        return html;
+      }
+      lastErr=`Proxy ${i+1} returned insufficient content (${typeof html === "string" ? html.length : 0} chars)`; continue;
+    } catch(e) {
+      lastErr = e.name==="AbortError" ? `Proxy ${i+1} timed out` : `Proxy ${i+1}: ${e.message}`;
+    }
+  }
+  throw new Error(`All proxies failed. Last: ${lastErr}`);
+}
+
+// UI Primitives
+const { useState, useEffect, useRef, useCallback } = React;
+
+function Modal({title,onClose,children,footer}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:"rgba(0,0,0,.75)"}}>
+      <div className="bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg" style={{maxHeight:"90vh",overflowY:"auto"}}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700">
+          <h2 className="text-base font-semibold text-white">{title}</h2>
+          <button onClick={onClose} className="p-1 rounded text-gray-400 hover:text-white"><I name="X" /></button>
+        </div>
+        <div className="px-5 py-4 space-y-4">{children}</div>
+        {footer&&<div className="flex justify-end gap-3 px-5 py-4 border-t border-gray-700">{footer}</div>}
+      </div>
+    </div>
+  );
+}
+
+const Row = ({label,hint,children}) => (
+  <div><label className="block text-xs font-medium text-gray-400 mb-1">{label}</label>{children}{hint&&<p className="text-xs text-gray-500 mt-1">{hint}</p>}</div>
+);
+const Field = p => <input {...p} className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm border border-gray-600 focus:border-blue-500 focus:outline-none placeholder-gray-500" />;
+const Select = ({children,...p}) => <select {...p} className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm border border-gray-600 focus:border-blue-500 focus:outline-none">{children}</select>;
+const Btn = ({variant="ghost",children,className="",...p}) => {
+  const v={primary:"bg-blue-600 hover:bg-blue-500 text-white",ghost:"text-gray-400 hover:text-white hover:bg-gray-700",danger:"text-red-400 hover:text-red-300 hover:bg-red-900/20"};
+  return <button {...p} className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-40 cursor-pointer select-none ${v[variant]} ${className}`}>{children}</button>;
+};
+const Toggle = ({on,onChange}) => (
+  <button onClick={onChange} className={`w-11 h-6 rounded-full relative transition-colors flex-shrink-0 ${on?"bg-blue-600":"bg-gray-600"}`}>
+    <span className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-transform ${on?"translate-x-6":"translate-x-1"}`}/>
+  </button>
+);
+
+function DealBadge({score}) {
+  if (score==null) return null;
+  const c=score>=70?"bg-green-600 text-green-100":score>=45?"bg-yellow-600 text-yellow-100":score>=20?"bg-orange-600 text-orange-100":"bg-gray-600 text-gray-300";
+  const l=score>=70?"HOTDEAL":score>=45?"GoodDeal":score>=20?"BelowMarket":"Fair";;
+  return <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${c}`}>{l} ({score})</span>;
+}
+
+function PriceBar({price,stats}) {
+  if (!stats||!price||stats.max===stats.min) return null;
+  const range=stats.max-stats.min;
+  const pp=Math.max(0,Math.min(100,((price-stats.min)/range)*100));
+  const mp=((stats.median-stats.min)/range)*100;
+  return (
+    <div className="mt-2">
+      <div className="relative h-2 bg-gray-700 rounded-full">
+        <div className="absolute inset-0 rounded-full" style={{background:"linear-gradient(to right,#22c55e,#eab308,#ef4444)"}}/>
+        <div className="absolute top-0 h-full w-0.5 bg-white opacity-60" style={{left:`${mp}%`}}/>
+        <div className="absolute w-3 h-3 bg-white rounded-full border-2 border-blue-500 shadow" style={{top:"-2px",left:`${pp}%`,transform:"translateX(-50%)"}}/>
+      </div>
+      <div className="flex justify-between text-xs text-gray-600 mt-1">
+        <span>{fmt$(stats.min)}</span><span className="text-gray-500">Median: {fmt$(stats.median)}</span><span>{fmt$(stats.max)}</span>
+      </div>
+    </div>
+  );
+}
+
+// Watch Modal
+function WatchModal({item,settings,onSave,onClose}) {
+  const isEdit=!!item?.id;
+  const [f,setF]=useState(item??{make:"",model:"",yearFrom:"",yearTo:"",excludeKeywords:"",location:settings.defaultLocation,dealThreshold:settings.dealThreshold});
+  const set=(k,v)=>setF(p=>({...p,[k]:v}));
+  return (
+    <Modal title={isEdit?"Edit Watch":"Add Watch"} onClose={onClose} footer={<>
+      <Btn onClick={onClose}>Cancel</Btn>
+      <Btn variant="primary" onClick={()=>{ if(!f.make){alert("Make is required.");return;} onSave({...f,id:item?.id||uid(),active:item?.active??true,status:item?.status??"idle",lastChecked:item?.lastChecked??null,errorMsg:null}); onClose(); }}>
+        {isEdit?"Save":"Add"}
+      </Btn>
+    </>}>
+      <div className="bg-blue-900/20 border border-blue-700/40 rounded-xl p-3 text-xs text-blue-300 flex gap-2">
+        <I name="Zap" size={14} className="flex-shrink-0 mt-0.5"/>
+        <div><p className="font-medium text-blue-200 mb-0.5">Smart Pricing Active</p><p>No manual target price needed. Deal Radar learns market prices from every listing it scans, then alerts you when something is significantly underpriced.</p></div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Row label="Make *"><Field placeholder="Toyota" value={f.make} onChange={e=>set("make",e.target.value)}/></Row>
+        <Row label="Model"><Field placeholder="Hilux (blank = all)" value={f.model} onChange={e=>set("model",e.target.value)}/></Row>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Row label="Year From"><Field type="number" placeholder="Any" value={f.yearFrom} onChange={e=>set("yearFrom",e.target.value)}/></Row>
+        <Row label="Year To"><Field type="number" placeholder="Any" value={f.yearTo} onChange={e=>set("yearTo",e.target.value)}/></Row>
+      </div>
+      <Row label="Exclude Keywords" hint="e.g. damaged, parts, wrecking"><Field placeholder="damaged, parts, wrecking" value={f.excludeKeywords} onChange={e=>set("excludeKeywords",e.target.value)}/></Row>
+      <div className="grid grid-cols-2 gap-3">
+        <Row label="Location"><Select value={f.location} onChange={e=>set("location",e.target.value)}>{LOCATIONS.map(l=><option key={l.slug} value={l.slug}>{l.label}</option>)}</Select></Row>
+        <Row label={`Deal Threshold: ${f.dealThreshold||15}% below market`}>
+          <input type="range" min="5" max="40" step="5" value={f.dealThreshold||15} onChange={e=>set("dealThreshold",Number(e.target.value))} className="w-full mt-1 accent-blue-500"/>
+        </Row>
+      </div>
+    </Modal>
+  );
+}
+
+// Settings Modal
+function SettingsModal({settings,onSave,onClose}) {
+  const [f,setF]=useState(settings);
+  const set=(k,v)=>setF(p=>({...p,[k]:v}));
+  return (
+    <Modal title="Settings" onClose={onClose} footer={<><Btn onClick={onClose}>Cancel</Btn><Btn variant="primary" onClick={()=>{onSave(f);onClose();}}>Save</Btn></>}>
+      <div className={`rounded-xl p-3 border ${f.globalScan?"bg-green-900/20 border-green-700/40":"bg-gray-700/30 border-gray-600"}`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <I name="Globe" size={15} className={f.globalScan?"text-green-400":"text-gray-500"}/>
+            <div><p className="text-sm font-medium text-white">Global Scan</p><p className="text-xs text-gray-400">Monitor ALL new Gumtree listings, auto-categorize, flag any bargain</p></div>
+          </div>
+          <Toggle on={f.globalScan} onChange={()=>set("globalScan",!f.globalScan)}/>
+        </div>
+        {f.globalScan&&<div className="mt-3 pt-3 border-t border-green-800/30">
+          <Row label={`Global threshold: ${f.globalThreshold}% below market`}><input type="range" min="10" max="50" step="5" value={f.globalThreshold} onChange={e=>set("globalThreshold",Number(e.target.value))} className="w-full mt-1 accent-green-500"/></Row>
+        </div>}
+      </div>
+      <Row label="Poll Interval"><Select value={f.pollInterval} onChange={e=>set("pollInterval",Number(e.target.value))}>{POLL_INTERVALS.map(p=><option key={p.value} value={p.value}>{p.label}</option>)}</Select></Row>
+      <Row label="Default Location"><Select value={f.defaultLocation} onChange={e=>set("defaultLocation",e.target.value)}>{LOCATIONS.map(l=><option key={l.slug} value={l.slug}>{l.label}</option>)}</Select></Row>
+      <Row label={`Min data points before flagging deals: ${f.minDataPoints}`}><input type="range" min="2" max="10" step="1" value={f.minDataPoints} onChange={e=>set("minDataPoints",Number(e.target.value))} className="w-full mt-1 accent-blue-500"/></Row>
+      <div className="flex items-center justify-between py-1">
+        <div><p className="text-sm text-white">Notification Sound</p><p className="text-xs text-gray-500">Chime on new deals</p></div>
+        <Toggle on={f.notificationSound} onChange={()=>set("notificationSound",!f.notificationSound)}/>
+      </div>
+    </Modal>
+  );
+}
+
+// Alert Card
+function AlertCard({alert,marketDB,onAction}) {
+  const stats    = marketDB[alert.marketKey]?.analysis;
+  const yearStats= stats?.byYear;
+  return (
+    <div className={`rounded-xl border p-4 bg-gray-800 ${alert.status==="new"?"border-blue-500":"border-gray-700"}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            {alert.status==="new"&&<span className="w-2 h-2 rounded-full bg-blue-400 flex-shrink-0 pulse"/>}
+            <DealBadge score={alert.dealScore}/>
+            {alert.isGlobal&&<span className="text-xs bg-green-900/40 text-green-400 px-1.5 py-0.5 rounded-full">GLOBAL</span>}
+          </div>
+          <p className="mt-1.5 text-sm font-medium text-white leading-snug line-clamp-2">{alert.title}</p>
+          <div className="mt-1 flex gap-2 flex-wrap">
+            <span className="text-xs text-gray-500 bg-gray-700 px-2 py-0.5 rounded-full">{alert.watchItemName}</span>
+            {alert.detectedMake&&<span className="text-xs text-purple-400 bg-purple-900/30 px-2 py-0.5 rounded-full">{alert.detectedMake}{alert.detectedModel?` ${alert.detectedModel}`:""}</span>}
+          </div>
+        </div>
+        <div className="flex gap-1 flex-shrink-0">
+          {alert.status==="saved"
+            ?<Btn className="!px-1.5 !py-1.5 text-yellow-400" onClick={()=>onAction(alert.id,"viewed")}><I name="BookmarkFill" size={14}/></Btn>
+            :<Btn className="!px-1.5 !py-1.5" onClick={()=>onAction(alert.id,"saved")}><I name="Bookmark" size={14}/></Btn>}
+          <Btn variant="danger" className="!px-1.5 !py-1.5" onClick={()=>onAction(alert.id,"dismissed")}><I name="X" size={14}/></Btn>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {alert.price!=null
+          ?<span className="text-2xl font-bold text-white">{fmt$(alert.price)}</span>
+          :<span className="text-sm font-medium text-yellow-400 bg-yellow-900/30 px-2 py-1 rounded-lg">Price not listed -- contact seller</span>}
+        {alert.belowMarket>0&&<span className="text-xs bg-green-900/60 text-green-400 px-2 py-0.5 rounded-full flex items-center gap-1"><I name="TrendDown" size={10}/>{alert.belowMarket}% below market</span>}
+        {alert.year&&<span className="text-xs bg-gray-700 text-gray-400 px-2 py-0.5 rounded-full">{alert.year}</span>}
+      </div>
+      {stats&&alert.price&&<div className="mt-1 text-xs text-gray-500 flex gap-3 flex-wrap">
+        <span>Median: <span className="text-gray-300">{fmt$(stats.median)}</span></span>
+        {alert.year&&yearStats?.[alert.year]&&<span>{alert.year}: <span className="text-gray-300">{fmt$(yearStats[alert.year].median)}</span></span>}
+        <span className="text-gray-600">({stats.pricedListings} data pts)</span>
+      </div>}
+      {stats&&alert.price&&<PriceBar price={alert.price} stats={stats}/>}
+      {alert.description&&<p className="mt-2 text-xs text-gray-400 leading-relaxed line-clamp-2">{alert.description.replace(/<[^>]+>/g,"").slice(0,220)}</p>}
+      <div className="mt-3 flex items-center gap-2">
+        {alert.thumbnail&&<img src={alert.thumbnail} alt="" className="w-16 h-12 object-cover rounded-lg flex-shrink-0" onError={e=>e.target.style.display="none"}/>}
+        <span className="text-xs text-gray-500 flex items-center gap-1 ml-auto mr-2"><I name="Clock" size={10}/>{fmtAgo(alert.pubDate||alert.timestamp)}</span>
+        <a href={alert.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-lg transition-colors">View <I name="External" size={12}/></a>
+      </div>
+    </div>
+  );
+}iv>
+    </div>
+  );
+}
+
+// Market Intel Card
+function MarketCard({label,data,threshold}) {
+  const s=data?.analysis;
+  if (!s) return <div className="bg-gray-800 rounded-xl border border-gray-700 p-4"><p className="text-sm font-medium text-white">{label}</p><p className="text-xs text-gray-500 mt-1">Collecting data...</p></div>;
+  const years=Object.keys(s.byYear).sort();
+  return (
+    <div className="bg-gray-800 rounded-xl border border-gray-700 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div><p className="text-sm font-medium text-white">{label}</p><p className="text-xs text-gray-500">{s.pricedListings} listings</p></div>
+        <span className="text-xs text-gray-600">{fmtAgo(s.lastUpdated)}</span>
+      </div>
+      <div className="grid grid-cols-4 gap-2 mb-3">
+        {[["Median",fmt$(s.median),"text-white"],["Avg",fmt$(s.avg),"text-gray-300"],["Low",fmt$(s.min),"text-green-400"],["High",fmt$(s.max),"text-red-400"]].map(([l,v,c])=>
+          <div key={l} className="bg-gray-700/50 rounded-lg p-2 text-center"><p className="text-xs text-gray-500">{l}</p><p className={`text-sm font-bold ${c}`}>{v}</p></div>
+        )}
+      </div>
+      {years.length>0&&<div>
+        <p className="text-xs text-gray-500 mb-1">By Year</p>
+        <div className="space-y-1" style={{maxHeight:128,overflowY:"auto"}}>
+          {years.map(yr=>{
+            const ys=s.byYear[yr],bw=s.max>0?Math.max(8,(ys.median/s.max)*100):0;
+            return <div key={yr} className="flex items-center gap-2 text-xs">
+              <span className="text-gray-400 w-10 text-right font-mono">{yr}</span>
+              <div className="flex-1 h-4 bg-gray-700/50 rounded relative overflow-hidden">
+                <div className="h-full bg-blue-600/40 rounded" style={{width:`${bw}%`}}/>
+                <span className="absolute inset-0 flex items-center px-2 text-white font-medium">{fmt$(ys.median)}</span>
+              </div>
+              <span className="text-gray-500 w-5 text-right">{ys.count}</span>
+            </div>;
+          })}
+        </div>
+      </div>}
+      <div className="mt-3 bg-green-900/20 border border-green-800/30 rounded-lg p-2 flex items-center gap-2">
+        <I name="Target" size={13} className="text-green-400 flex-shrink-0"/>
+        <p className="text-xs text-green-300">Deal zone: under <b className="text-green-200">{fmt$(Math.round(s.median*(1-(threshold||15)/100)))}</b></p>
+      </div>
+    </div>
+  );
+}
+
+// Main App
+function DealRadar() {
+  const [items,    setItems]    = useState(()=>S.get("dr_items",   []));
+  const [alerts,   setAlerts]   = useState(()=>S.get("dr_alerts",  []));
+  const [log,      setLog]      = useState(()=>S.get("dr_log",     []));
+  const [settings, setSettings] = useState(()=>S.get("dr_settings",DEFAULT_SETTINGS));
+  const [marketDB, setMarketDB] = useState(()=>S.get("dr_market",  {}));
+  const [tab,      setTab]      = useState("alerts");
+  const [filter,   setFilter]   = useState("all");
+  const [sidebar,  setSidebar]  = useState(true);
+  const [polling,  setPolling]  = useState(false);
+  const [diagMsg,  setDiagMsg]  = useState(null);
+  const [watchModal, setWatchModal] = useState(false);
+  const [editItem,   setEditItem]   = useState(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [notifPerm, setNotifPerm] = useState(typeof Notification!=="undefined"?Notification.permission:"denied");
+  const timerRef = useRef(null);
+  const seenRef  = useRef(new Set(S.get("dr_seen",[])));
+
+  useEffect(()=>S.set("dr_items",   items),              [items]);
+  useEffect(()=>S.set("dr_alerts",  alerts.slice(0,500)),[alerts]);
+  useEffect(()=>S.set("dr_log",     log.slice(0,200)),   [log]);
+  useEffect(()=>S.set("dr_settings",settings),           [settings]);
+  useEffect(()=>{ const t={}; for(const[k,v] of Object.entries(marketDB)) t[k]={...v,points:(v.points||[]).slice(-300)}; S.set("dr_market",t); },[marketDB]);
+
+  useEffect(()=>{ if(typeof Notification!=="undefined"&&Notification.permission==="default") Notification.requestPermission().then(p=>setNotifPerm(p)); },[]);
+
+  const processListing = useCallback((listing, watchItem, isGlobal, currentDB) => {
+    const price = xPrice(listing.title)||xPrice(listing.description);
+    const year  = xYear(listing.title) ||xYear(listing.description);
+    const {make:dMake,model:dModel} = categorize(listing.title);
+    const eMake  = watchItem?.make  || dMake;
+    const eModel = watchItem?.model || dModel;
+    if (!eMake) return {dataPoint:null,alert:null};
+    if (watchItem?.yearFrom && year && year<Number(watchItem.yearFrom)) return {dataPoint:null,alert:null};
+    if (watchItem?.yearTo   && year && year>Number(watchItem.yearTo))   return {dataPoint:null,alert:null};
+    const key = mKey(eMake,eModel);
+    const dataPoint = price?{guid:listing.guid,price,year,title:listing.title,url:listing.link,date:listing.pubDate||new Date().toISOString()}:null;
+    if (seenRef.current.has(listing.guid)) return {dataPoint,key,alert:null};
+    seenRef.current.add(listing.guid);
+    const mData   = currentDB[key];
+    const stats   = mData?.analysis;
+    const thresh  = isGlobal?(settings.globalThreshold||20):(watchItem?.dealThreshold||settings.dealThreshold||15);
+    const minDP   = settings.minDataPoints||3;
+    let isDeal=false,belowMarket=null,score=null;
+    if (!price) { isDeal=!isGlobal; score=isDeal?25:null; }
+    else if (stats&&stats.pricedListings>=minDP) {
+      const ys=stats.byYear, ref=(year&&ys?.[year]?.count>=2)?ys[year].median:stats.median;
+      if (ref>0) { belowMarket=Math.round(((ref-price)/ref)*100); score=dealScore(price,stats,year,ys); isDeal=belowMarket>=thresh; }
+    }
+    const alert = isDeal?{
+      id:uid(),watchItemId:watchItem?.id||"__global__",
+      watchItemName:watchItem?`${watchItem.make||""} ${watchItem.model||""}`.trim()||"Watch Item":`${eMake}${eModel?" "+eModel:""}`,
+      isGlobal,title:listing.title,price,year,url:listing.link,pubDate:listing.pubDate,
+      description:listing.description,thumbnail:listing.thumbnail,
+      timestamp:new Date().toISOString(),status:"new",
+      dealScore:score,belowMarket:belowMarket>0?belowMarket:null,
+      marketKey:key,detectedMake:isGlobal?eMake:null,detectedModel:isGlobal?eModel:null,
+    }:null;
+    return {dataPoint,key,alert};
+  },[settings]);
+
+  const runFeed = useCallback(async (watchItem, isGlobal, currentDB) => {
+    let checked=0,triggered=0,newPts=0,error=null;
+    let db={...currentDB};
+    const label = isGlobal?"Global Scan":`${watchItem?.make||""} ${watchItem?.model||""}`.trim()||"Watch Item";
+    try {
+      const listings = await fetchListingsAPI(isGlobal?null:watchItem, settings, setDiagMsg);
+      checked=listings.length;
+      const fresh=[];
+      {
+        for (const l of listings) {
+          if (watchItem) {
+            const txt=`${l.title} ${l.description}`.toLowerCase();
+            if (watchItem.excludeKeywords) {
+              const kws=watchItem.excludeKeywords.toLowerCase().split(",").map(s=>s.trim()).filter(Boolean);
+              if (kws.some(k=>txt.includes(k))) continue;
+            }
+          }
+          const r=processListing(l,watchItem,isGlobal,db);
+          if (r.dataPoint&&r.key) {
+            if (!db[r.key]) db[r.key]={points:[],analysis:null};
+            if (!db[r.key].points.find(p=>p.guid===r.dataPoint.guid)) {
+              db[r.key]={points:[...db[r.key].points,r.dataPoint],analysis:null};
+              db[r.key].analysis=analyze(db[r.key].points);
+              newPts++;
+            }
+          }
+          if (r.alert) { fresh.push(r.alert); triggered++; }
+        }
+      }
+      if (fresh.length>0) {
+        fresh.sort((a,b)=>(b.dealScore||0)-(a.dealScore||0));
+        setAlerts(p=>[...fresh,...p]);
+        if (settings.notificationSound) chime();
+        if (notifPerm==="granted") fresh.slice(0,3).forEach(a=>{
+          try { const n=new Notification(`Deal Radar: ${a.watchItemName}`,{body:`${a.dealScore>=70?"HOT DEAL! ":""}${a.title} -- ${a.price!=null?fmt$(a.price):"Check price"}`}); n.onclick=()=>window.open(a.url,"_blank"); } catch{}
+        });
+      }
+      if (watchItem) setItems(p=>p.map(w=>w.id===watchItem.id?{...w,status:"ok",lastChecked:new Date().toISOString(),errorMsg:null}:w));
+    } catch(e) {
+      error=e.message;
+      if (watchItem) setItems(p=>p.map(w=>w.id===watchItem.id?{...w,status:"error",lastChecked:new Date().toISOString(),errorMsg:e.message}:w));
+    }
+    setLog(p=>[{id:uid(),ts:new Date().toISOString(),name:label,checked,triggered,newPts,error,isGlobal},...p]);
+    setDiagMsg(null);
+    return {db,error};
+  },[settings,notifPerm,processListing]);
+
+  const pollAll = useCallback(async () => {
+    setPolling(true);
+    let db={...marketDB};
+    if (settings.globalScan) {
+      const r=await runFeed(null,true,db);
+      db=r.db;
+    }
+    for (const item of items.filter(w=>w.active)) {
+      const r=await runFeed(item,false,db);
+      db=r.db;
+    }
+    setMarketDB(db);
+    S.set("dr_seen",Array.from(seenRef.current).slice(-10000));
+    setPolling(false);
+  },[items,marketDB,settings,runFeed]);
+
+  useEffect(()=>{
+    clearInterval(timerRef.current);
+    const hasWork=settings.globalScan||items.some(w=>w.active);
+    if (settings.pollInterval>0&&hasWork) timerRef.current=setInterval(pollAll,settings.pollInterval*60000);
+    return ()=>clearInterval(timerRef.current);
+  },[settings.pollInterval,settings.globalScan,items,pollAll]);
+
+  const actAlert=(id,status)=>setAlerts(p=>p.map(a=>a.id===id?{...a,status}:a));
+  const saveItem=item=>setItems(p=>p.some(w=>w.id===item.id)?p.map(w=>w.id===item.id?item:w):[...p,item]);
+  const newCount=alerts.filter(a=>a.status==="new").length;
+  const savedCount=alerts.filter(a=>a.status==="saved").length;rts.filter(a=>a.status==="saved").length;
+  const dismissed=alerts.filter(a=>a.status==="dismissed");
+  const totalPts=Object.values(marketDB).reduce((s,d)=>s+(d.points?.length||0),0);
+  const totalVeh=Object.keys(marketDB).filter(k=>marketDB[k]?.analysis).length;
+
+  const displayAlerts=(()=>{
+    let base=tab==="saved"?alerts.filter(a=>a.status==="saved"):alerts.filter(a=>a.status!=="dismissed");
+    if (filter==="global") base=base.filter(a=>a.isGlobal);
+    else if (filter==="watched") base=base.filter(a=>!a.isGlobal);
+    else if (filter!=="all") base=base.filter(a=>a.watchItemId===filter);
+    return [...base].sort((a,b)=>(b.dealScore||0)-(a.dealScore||0));
+  })();
+
+  const marketEntries=Object.entries(marketDB).filter(([,v])=>v.analysis).sort((a,b)=>(b[1].analysis?.pricedListings||0)-(a[1].analysis?.pricedListings||0));
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white flex flex-col" style={{fontFamily:"system-ui,-apple-system,sans-serif"}}>
+
+      <nav className="sticky top-0 z-10 bg-gray-800 border-b border-gray-700 px-4 h-14 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <button onClick={()=>setSidebar(s=>!s)} className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-700">
+            <I name="ChevLeft" size={16} className={`transition-transform ${sidebar?"":"rotate-180"}`}/>
+          </button>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center"><I name="Car" size={16}/></div>
+            <span className="font-bold text-white text-lg">Deal Radar</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {diagMsg&&<span className="text-xs text-yellow-400 hidden md:block">{diagMsg}</span>}
+          {polling&&!diagMsg&&<span className="text-xs text-blue-400 flex items-center gap-1"><I name="Refresh" size={11} className="spin"/>Scanning...</span>}
+          {totalPts>0&&<span className="text-xs text-gray-500 hidden md:flex items-center gap-1"><I name="Database" size={11}/>{totalPts}pts/{totalVeh}v</span>}
+          <Btn onClick={pollAll} disabled={polling} className="text-xs"><I name="Refresh" size={12} className={polling?"spin":""}/>Scan Now</Btn>
+          <div className="relative">
+            <button className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-700"><I name="Bell" size={18}/></button>
+            {newCount>0&&<span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-500 rounded-full text-xs flex items-center justify-center font-bold">{newCount>9?"9+":newCount}</span>}
+          </div>
+          <button onClick={()=>setSettingsOpen(true)} className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-700"><I name="Settings" size={18}/></button>
+        </div>
+      </nav>
+
+      <div className="flex flex-1" style={{minHeight:0}}>
+
+        {sidebar&&<aside className="w-60 flex-shrink-0 bg-gray-800 border-r border-gray-700 flex flex-col overflow-y-auto">
+          <div className={`mx-2 mt-2 rounded-xl p-3 border ${settings.globalScan?"bg-green-900/20 border-green-700/30":"bg-gray-700/30 border-gray-600"}`}>
+            <div className="flex items-center gap-2">
+              <I name="Globe" size={13} className={settings.globalScan?"text-green-400":"text-gray-500"}/>
+              <div className="flex-1 min-w-0"><p className="text-xs font-medium text-white">Global Scan</p><p className="text-xs text-gray-500 truncate">{settings.globalScan?`All vehicles (${settings.globalThreshold}% threshold)`:"Disabled"}</p></div>
+              <Toggle on={settings.globalScan} onChange={()=>setSettings(s=>({...s,globalScan:!s.globalScan}))}/>
+            </div>
+          </div>
+          <div className="px-3 py-3 border-b border-gray-700 flex items-center justify-between mt-2">
+            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Targeted</span>
+            <Btn variant="primary" className="!px-2 !py-1 text-xs" onClick={()=>{setEditItem(null);setWatchModal(true);}}><I name="Plus" size={12}/>Add</Btn>
+          </div>
+          <div className="flex-1 p-2 space-y-2">
+            {items.length===0?<div className="text-center py-6 text-gray-500"><I name="Search" size={22} className="mx-auto mb-2 opacity-30"/><p className="text-xs">No targeted watches</p><p className="text-xs text-gray-600 mt-0.5">Global Scan catches everything</p></div>
+            :items.map(item=>{
+              const name=`${item.make||""} ${item.model||""}`.trim()||"Unnamed";
+              const key=mKey(item.make,item.model);
+              const stats=marketDB[key]?.analysis;
+              const fresh=alerts.filter(a=>a.watchItemId===item.id&&a.status==="new").length;
+              return <div key={item.id} className="bg-gray-700 rounded-xl p-3">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${item.status==="error"?"bg-red-400":item.active?"bg-green-400":"bg-gray-500"}`}/>
+                  <span className="text-sm font-medium text-white flex-1 truncate">{name}</span>
+                  {fresh>0&&<span className="w-5 h-5 bg-blue-500 rounded-full text-xs flex items-center justify-center font-bold">{fresh}</span>}
+                </div>
+                <div className="text-xs space-y-0.5 mb-2">
+                  {stats?<><div className="text-gray-400">Market: <span className="text-white font-medium">{fmt$(stats.median)}</span></div><div className="text-green-400">Deal < {fmt$(Math.round(stats.median*(1-(item.dealThreshold||15)/100)))}</div><div className="text-gray-500">{stats.pricedListings} listings</div></>
+                  :<div className="text-gray-500 flex items-center gap-1"><I name="Database" size={9}/>Learning...</div>}
+                  {item.status==="error"&&<div className="text-red-400 text-xs truncate">{item.errorMsg}</div>}
+                </div>
+                <div className="flex gap-1">
+                  <button onClick={()=>setItems(p=>p.map(w=>w.id===item.id?{...w,active:!w.active}:w))} className={`flex-1 text-xs py-1 rounded-lg ${item.active?"bg-gray-600 hover:bg-gray-500 text-gray-300":"bg-green-900/50 text-green-400"}`}>{item.active?"Pause":"Resume"}</button>
+                  <button onClick={()=>{setEditItem(item);setWatchModal(true);}} className="p-1.5 rounded-lg bg-gray-600 hover:bg-gray-500 text-gray-300"><I name="Pencil" size={12}/></button>
+                  <button onClick={()=>confirm(`Delete \"${name}\"?`)&&setItems(p=>p.filter(w=>w.id!==item.id))} className="p-1.5 rounded-lg bg-gray-600 hover:bg-red-900/50 text-gray-300 hover:text-red-400"><I name="Trash" size={12}/></button>
+                </div>
+              </div>;
+            })}
+          </div>
+        </aside>}
+
+        <main className="flex-1 flex flex-col" style={{minWidth:0}}>
+          <div className="bg-gray-900 border-b border-gray-700 flex items-center px-4 gap-0 flex-shrink-0">
+            {[{id:"alerts",label:"Deals",count:newCount,icon:"Zap"},{id:"saved",label:"Saved",count:savedCount,icon:"Bookmark"},{id:"market",label:"Market Intel",count:0,icon:"BarChart"},{id:"activity",label:"Log",count:0,icon:"Activity"}].map(t=>(
+              <button key={t.id} onClick={()=>setTab(t.id)} className={`flex items-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 transition-colors ${tab===t.id?"border-blue-500 text-white":"border-transparent text-gray-500 hover:text-gray-300"}`}>
+                <I name={t.icon} size={13}/>{t.label}
+                {t.count>0&&<span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-600 text-white">{t.count}</span>}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4">
+
+            {(tab==="alerts"||tab==="saved")&&<>
+              <div className="flex items-center gap-2 mb-4 flex-wrap">
+                <I name="Filter" size={12} className="text-gray-500 flex-shrink-0"/>
+                {[{id:"all",l:"All"},{id:"global",l:"Global Finds"},{id:"watched",l:"Watched"},...items.map(w=>({id:w.id,l:`${w.make||""} ${w.model||""}`.trim()||"Unnamed"}))].map(f=>(
+                  <button key={f.id} onClick={()=>setFilter(f.id)} className={`text-xs px-3 py-1 rounded-full transition-colors ${filter===f.id?"bg-blue-600 text-white":"bg-gray-700 text-gray-400 hover:text-white"}`}>{f.l}</button>
+                ))}
+              </div>
+              {displayAlerts.length===0
+                ?<div className="flex flex-col items-center justify-center py-20 text-center">
+                  <div className="bg-gray-800 rounded-2xl p-8 max-w-md w-full">
+                    <div className="w-16 h-16 bg-blue-900/50 rounded-2xl flex items-center justify-center mx-auto mb-4"><I name="Car" size={36} className="text-blue-400"/></div>
+                    <h2 className="text-xl font-bold mb-2">{totalPts===0?"Deal Radar":"No deals yet"}</h2>
+                    <p className="text-gray-400 text-sm mb-4 leading-relaxed">
+                      {totalPts===0?"Hit Scan Now. Global Scan monitors every new Gumtree listing in your area, builds a pricing database automatically, and flags anything significantly underpriced.":
+                      totalPts<20?`Building data... ${totalPts} listings across ${totalVeh} vehicle types. Keep scanning.`:"Market data healthy. Nothing below threshold right now."}
+                    </p>
+                    <Btn variant="primary" className="mx-auto text-sm !px-5 !py-2.5" onClick={pollAll} disabled={polling}>
+                      <I name="Refresh" size={16} className={polling?"spin":""}/>
+                      {polling?"Scanning...":"Start Scanning"}
+                    </Btn>
+                  </div>
+                </div>
+                :<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {displayAlerts.map(alert=>(<AlertCard key={alert.id} alert={alert} marketDB={marketDB} onAction={actAlert}/>))}
+                </div>
+            </>}
+
+            {tab==="market"&&<>
+              <div className="space-y-4">
+                {marketEntries.length===0?<div className="bg-gray-800 rounded-2xl p-8 text-center"><p className="text-gray-400">Run a scan to populate market data</p></div>
+                :marketEntries.map(([key,data])=>(
+                  <MarketCard key={key} label={key.split("_").map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(" ")} data={data} threshold={items.find(w=>mKey(w.make,w.model)===key)?.dealThreshold||settings.dealThreshold}/>
+                ))}
+              </div>
+            </>}
+
+            {tab==="activity"&&<>
+              <div className="space-y-2">
+                {log.length===0?<div className="bg-gray-800 rounded-2xl p-8 text-center"><p className="text-gray-400">No activity yet</p></div>
+                :log.map(e=>(
+                  <div key={e.id} className="bg-gray-800 rounded-xl border border-gray-700 p-3">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <div className="flex items-center gap-2 text-sm font-medium text-white">
+                        {e.isGlobal?<I name="Globe" size={13}/>:<I name="Target" size={13}/>}
+                        {e.name}
+                      </div>
+                      <span className="text-xs text-gray-500">{fmtAgo(e.ts)}</span>
+                    </div>
+                    <div className="flex gap-4 text-xs text-gray-400">
+                      <span>Scanned: <b className="text-white">{e.checked}</b></span>
+                      <span className="text-green-400">New: <b>{e.triggered}</b></span>
+                      <span className="text-blue-400">Data: <b>+{e.newPts}</b></span>
+                      {e.error&&<span className="text-red-400 flex items-center gap-1"><I name="Warning" size={11}/>{e.error}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>}
+          </div>
+        </main>
+      </div>
+
+      {watchModal&&<WatchModal item={editItem} settings={settings} onSave={saveItem} onClose={()=>{setWatchModal(false);setEditItem(null);}}/>}
+      {settingsOpen&&<SettingsModal settings={settings} onSave={setSettings} onClose={()=>setSettingsOpen(false)}/>}
+    </div>
+  );
+}
+
+const root=ReactDOM.createRoot(document.getElementById("root"));
+root.render(<DealRadar/>);ls-3 gap-4">
+                  {displayAlerts.map(a=><AlertCard key={a.id} alert={a} marketDB={marketDB} onAction={actAlert}/>)}
+                </div>}
+              {dismissed.length>0&&tab==="alerts"&&<details className="mt-8">
+                <summary className="text-xs text-gray-600 cursor-pointer hover:text-gray-500 flex items-center gap-1.5 select-none"><I name="EyeOff" size={12}/>{dismissed.length} dismissed</summary>
+                <div className="mt-2 space-y-1">
+                  {dismissed.map(a=><div key={a.id} className="flex items-center justify-between bg-gray-800/50 rounded-lg px-3 py-2">
+                    <span className="text-xs text-gray-500 truncate">{a.title}</span>
+                    <button onClick={()=>actAlert(a.id,"viewed")} className="text-xs text-blue-500 hover:text-blue-400 ml-3 flex-shrink-0">Restore</button>
+                  </div>)}
+                </div>
+              </details>}
+            </>}
+
+            {tab==="market"&&<div className="space-y-4">
+              <div className="bg-gray-800 rounded-xl border border-gray-700 p-4 flex items-start gap-3">
+                <div className="w-10 h-10 bg-blue-900/50 rounded-xl flex items-center justify-center flex-shrink-0"><I name="Database" size={20} className="text-blue-400"/></div>
+                <div><p className="text-sm font-medium text-white">Market Intelligence</p>
+                  <p className="text-xs text-gray-400">{totalPts} data points across {totalVeh} vehicle types.{totalPts===0?" Scan to start.":totalPts<50?" Still building -- keep scanning for better accuracy.":" Data is solid."}</p>
+                </div>
+              </div>
+              {marketEntries.length===0?<div className="text-center py-12 text-gray-500"><I name="BarChart" size={36} className="mx-auto mb-3 opacity-30"/><p>No market data yet</p></div>
+              :<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {marketEntries.map(([key,data])=>{
+                  const [make,model]=key.split("_");
+                  const cap=s=>s?s.charAt(0).toUpperCase()+s.slice(1):"";
+                  const label=`${cap(make)}${model?" "+cap(model):""}`;
+                  const wi=items.find(i=>mKey(i.make,i.model)===key);
+                  return <MarketCard key={key} label={label} data={data} threshold={wi?.dealThreshold||settings.globalThreshold||20}/>;
+                })}
+              </div>}
+            </div>}
+
+            {tab==="activity"&&<div className="space-y-2">
+              {log.length===0?<div className="flex flex-col items-center justify-center py-20 text-center"><I name="Activity" size={36} className="text-gray-700 mb-3"/><p className="text-gray-500 text-sm">No activity yet</p></div>
+              :log.map(e=><div key={e.id} className={`rounded-xl px-4 py-3 flex items-start gap-3 border ${e.error?"bg-red-950/30 border-red-900/50":"bg-gray-800 border-gray-700"}`}>
+                {e.error?<I name="XCircle" size={16} className="text-red-400 mt-0.5 flex-shrink-0"/>:<I name="Check" size={16} className="text-green-400 mt-0.5 flex-shrink-0"/>}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-white flex items-center gap-1.5">{e.isGlobal&&<I name="Globe" size={12} className="text-green-400"/>}{e.name}</span>
+                    <span className="text-xs text-gray-500 flex-shrink-0">{fmtAgo(e.ts)}</span>
+                  </div>
+                  <p className="text-xs mt-0.5">
+                    {e.error?<span className="text-red-400">{e.error}</span>
+                    :<span className="text-gray-400">Checked <b className="text-white">{e.checked}</b> listings{e.newPts>0&&<span className="text-purple-400"> (+{e.newPts} data pts)</span>}{" arrow "}{e.triggered>0?<b className="text-blue-400">{e.triggered} deal{e.triggered!==1?"s":""}</b>:"no new deals"}</span>}
+                  </p>
+                </div>
+              </div>)}
+            </div>}
+
+          </div>
+        </main>
+      </div>
+
+      {watchModal&&<WatchModal item={editItem} settings={settings} onSave={saveItem} onClose={()=>{setWatchModal(false);setEditItem(null);}}/>}
+      {settingsOpen&&<SettingsModal settings={settings} onSave={setSettings} onClose={()=>setSettingsOpen(false)}/>}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<DealRadar/>);
+</script>
+</body>
+</html>
